@@ -1,0 +1,206 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────
+// ENUM — Sesuai PRD
+// ─────────────────────────────────────────
+
+enum Role {
+  pemilik   
+  karyawan  
+}
+
+enum StatusLaporan {
+  pending
+  approved
+  rejected
+}
+
+enum StatusPembayaran {
+  unpaid
+  paid
+}
+
+enum TipeReferensiStok {
+  produksi
+  penjualan
+  penyesuaian
+}
+
+enum TipeStok {
+  masuk
+  keluar
+}
+
+enum StatusKaryawan {
+  active
+  inactive
+}
+
+// ─────────────────────────────────────────
+// MODEL users
+// ─────────────────────────────────────────
+model Users {
+  id         Int      @id @default(autoincrement())
+  nama       String   @db.VarChar(100)
+  username   String   @unique @db.VarChar(50)
+  password   String   @db.VarChar(255)  
+  role       Role
+  created_at DateTime @default(now())
+
+  // Relations
+  transaksi_penjualan         TransaksiPenjualan[]
+  pengeluaran                 Pengeluaran[]
+  stok_bata                   StokBata[]
+  laporan_produksi_verifikasi LaporanProduksi[] @relation("VerifiedBy")
+  profile                     UserProfile?
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────
+// MODEL user_profile (BARU)
+// ─────────────────────────────────────────
+model UserProfile {
+  id            Int       @id @default(autoincrement())
+  user_id       Int       @unique
+  foto          String?   @db.Text
+  email         String?   @db.VarChar(100)
+  tanggal_lahir DateTime? @db.Date
+  updated_at    DateTime  @updatedAt
+
+  // Relations
+  user Users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_profile")
+}
+
+// ─────────────────────────────────────────
+// MODEL karyawan
+// ─────────────────────────────────────────
+model Karyawan {
+  id            Int            @id @default(autoincrement())
+  nama          String         @db.VarChar(100)
+  tlp           String?        @db.VarChar(20)
+  alamat        String?        @db.Text
+  upah_per_bata Decimal        @db.Decimal(10, 2)
+  status        StatusKaryawan @default(active)
+  created_at    DateTime       @default(now())
+
+  // Relations
+  laporan_produksi LaporanProduksi[]
+  gaji             Gaji[]
+
+  @@map("karyawan")
+}
+
+// ─────────────────────────────────────────
+// MODEL laporan_produksi
+// ─────────────────────────────────────────
+model LaporanProduksi {
+  id              Int           @id @default(autoincrement())
+  id_karyawan     Int
+  verified_by     Int?          
+  tanggal_laporan DateTime      @db.Date
+  quantity        Int           
+  foto            String        @db.VarChar(255)  
+  status          StatusLaporan @default(pending)
+  rejection_note  String?       @db.Text
+  verified_at     DateTime?
+  created_at      DateTime      @default(now())
+
+  // Relations
+  karyawan        Karyawan      @relation(fields: [id_karyawan], references: [id])
+  verifikator     Users?        @relation("VerifiedBy", fields: [verified_by], references: [id])
+
+  @@map("laporan_produksi")
+}
+
+// ─────────────────────────────────────────
+// MODEL transaksi_penjualan
+// ─────────────────────────────────────────
+model TransaksiPenjualan {
+  id                 Int      @id @default(autoincrement())
+  created_by         Int      
+  tanggal_transaksi  DateTime @db.Date
+  quantity           Int      
+  harga_per_bata     Decimal  @db.Decimal(10, 2)
+  total              Decimal  @db.Decimal(15, 2)  
+  nama_pembeli       String?  @db.VarChar(100)
+  notes              String?  @db.Text
+  created_at         DateTime @default(now())
+
+  // Relations
+  creator            Users    @relation(fields: [created_by], references: [id])
+
+  @@map("transaksi_penjualan")
+}
+
+// ─────────────────────────────────────────
+// MODEL pengeluaran
+// ─────────────────────────────────────────
+model Pengeluaran {
+  id                  Int      @id @default(autoincrement())
+  created_by          Int      
+  tanggal_pengeluaran DateTime @db.Date
+  kategori            String   @db.VarChar(100)
+  deskripsi           String   @db.VarChar(255)
+  total               Decimal  @db.Decimal(15, 2)
+  created_at          DateTime @default(now())
+
+  // Relations
+  creator             Users    @relation(fields: [created_by], references: [id])
+
+  @@map("pengeluaran")
+}
+
+// ─────────────────────────────────────────
+// MODEL gaji
+// ─────────────────────────────────────────
+model Gaji {
+  id                 Int              @id @default(autoincrement())
+  id_karyawan        Int
+  bulan              Int              @db.SmallInt  
+  tahun              Int              @db.SmallInt  
+  total_produksi     Int              
+  upah_per_bata      Decimal          @db.Decimal(10, 2)  
+  total_gaji         Decimal          @db.Decimal(15, 2)  
+  status_pembayaran  StatusPembayaran @default(unpaid)
+  tanggal_pembayaran DateTime?        @db.Date
+  created_at         DateTime         @default(now())
+
+  // Relations
+  karyawan           Karyawan         @relation(fields: [id_karyawan], references: [id])
+
+  @@unique([id_karyawan, bulan, tahun])  
+  @@map("gaji")
+}
+
+// ─────────────────────────────────────────
+// MODEL stok_bata
+// ─────────────────────────────────────────
+model StokBata {
+  id               Int               @id @default(autoincrement())
+  tipe_referensi   TipeReferensiStok 
+  id_referensi     Int               
+  tipe             TipeStok          
+  quantity         Int               
+  stok_setelah     Int               
+  keterangan       String?           @db.Text
+  created_by       Int               
+  created_at       DateTime          @default(now())
+
+  // Relations
+  creator          Users             @relation(fields: [created_by], references: [id])
+
+  @@map("stok_bata")
+}
