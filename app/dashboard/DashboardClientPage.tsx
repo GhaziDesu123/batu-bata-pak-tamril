@@ -190,7 +190,7 @@ export default function DashboardClientPage({ data: initialData, currentMonth, c
               <XAxis dataKey="tanggal" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}`} />
               <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `${(v / 1000000).toFixed(1)}jt`} />
-              <Tooltip formatter={(value: any, name?: string) => [name === "produksi" ? `${value.toLocaleString("id-ID")} Pcs` : `Rp ${value.toLocaleString("id-ID")}`, name === "produksi" ? "Produksi" : "Penjualan"]} />
+              <Tooltip formatter={(value: any, name: any) => [name === "produksi" ? `${value.toLocaleString("id-ID")} Pcs` : `Rp ${value.toLocaleString("id-ID")}`, name === "produksi" ? "Produksi" : "Penjualan"]} />
               <Legend formatter={(v) => (v === "produksi" ? "Produksi (Pcs)" : "Penjualan (Rp)")} />
               <Bar yAxisId="left" dataKey="produksi" fill="#94442e" radius={[4, 4, 0, 0]} />
               <Bar yAxisId="right" dataKey="penjualan" fill="#b35c44" radius={[4, 4, 0, 0]} opacity={0.7} />
