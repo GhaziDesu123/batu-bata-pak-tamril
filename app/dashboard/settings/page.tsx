@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "react-hot-toast";
-
+export const dynamic = "force-dynamic";
 export default function SettingsPage() {
   const { data: session, update } = useSession();
   const [isSaving, setIsSaving] = useState(false);

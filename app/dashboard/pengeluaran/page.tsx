@@ -1,6 +1,7 @@
 import React from "react";
 import PengeluaranClientPage from "./PengeluaranClientPage";
 import { getPengeluaran } from "./action";
+export const dynamic = "force-dynamic";
 
 export default async function PengeluaranPage() {
   const now = new Date();

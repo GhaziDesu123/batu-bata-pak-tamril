@@ -1,5 +1,6 @@
 // app/dashboard/karyawan/page.tsx
 import React from "react";
+export const dynamic = "force-dynamic";
 import KaryawanClientPage from "./KaryawanClientPage"; // Sesuaikan nama client page lu
 import { getKaryawan } from "./action"; // Sesuaikan fungsi read data lu
 

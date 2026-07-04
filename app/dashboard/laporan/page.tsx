@@ -1,6 +1,6 @@
 import { getLaporanProduksi, getLaporanPenjualan, getLaporanPengeluaran, getLaporanLabaBersih, getLaporanGaji } from "./action";
 import LaporanClientPage from "./LaporanClientPage";
-
+export const dynamic = "force-dynamic";
 export default async function LaporanPage() {
   const now = new Date();
   const currentMonth = now.getMonth() + 1;

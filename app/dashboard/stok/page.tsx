@@ -1,7 +1,7 @@
 import React from "react";
 import StokClientPage from "./StokClientPage";
 import { getStokSekarang, getLedgerStok } from "./action";
-
+export const dynamic = "force-dynamic";
 export default async function StokPage() {
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
