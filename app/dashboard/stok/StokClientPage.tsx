@@ -3,6 +3,7 @@
 import React, { useState, useTransition, useEffect, useMemo } from "react";
 import { Plus, Calendar, Layers, ClipboardList, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { getStokSekarang, getLedgerStok, createStokAdjustment } from "./action";
+import { useSession } from "next-auth/react";
 import Swal from "sweetalert2";
 
 interface LedgerType {
@@ -25,6 +26,7 @@ interface Props {
 const PAGE_SIZE_OPTIONS = [5, 10, 15, 25];
 
 export default function StokClientPage({ stokSaatIni, initialLedger, currentMonth, currentYear }: Props) {
+  const { data: session } = useSession();
   const [isPending, startTransition] = useTransition();
   const [liveStok, setLiveStok] = useState(stokSaatIni);
   const [ledgerData, setLedgerData] = useState<LedgerType[]>(initialLedger);
@@ -33,7 +35,6 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
   const [filterBulan, setFilterBulan] = useState(currentMonth);
   const [filterTahun, setFilterTahun] = useState(currentYear);
 
-  // Form states untuk modal adjustment
   const [tipeAdj, setTipeAdj] = useState<"masuk" | "keluar">("masuk");
   const [quantityAdj, setQuantityAdj] = useState("");
   const [keteranganAdj, setKeteranganAdj] = useState("");
@@ -55,7 +56,6 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
     setCurrentPage(1);
   };
 
-  // Reset ke halaman 1 saat filter berubah
   useEffect(() => {
     setCurrentPage(1);
     startTransition(async () => {
@@ -81,26 +81,11 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
       return;
     }
 
-    const savedUser = localStorage.getItem("admin_profile");
-
-    if (!savedUser) {
-      Swal.fire({ icon: "error", title: "Sesi Habis", text: "Data login tidak ditemukan di browser Anda. Silakan login kembali.", confirmButtonColor: "#94442e" });
+    // Ambil userId dari session NextAuth — bukan localStorage
+    const userId = (session?.user as any)?.id;
+    if (!userId) {
+      Swal.fire({ icon: "error", title: "Sesi Habis", text: "Silakan login kembali.", confirmButtonColor: "#94442e" });
       return;
-    }
-
-    let userId: any = null;
-    try {
-      let parsedData = JSON.parse(savedUser);
-      if (typeof parsedData === "string") parsedData = JSON.parse(parsedData);
-      console.log("=== DEBUG DATA USER (STOK) ===", parsedData);
-      userId = parsedData?.id || parsedData?.user?.id || parsedData?.data?.id || parsedData?.id_user;
-      if (!userId) {
-        console.warn("Peringatan: ID Pengguna tidak ditemukan di admin_profile. Menggunakan fallback ID: 1");
-        userId = 1;
-      }
-    } catch (error) {
-      console.error("Gagal melakukan parsing data user, menggunakan ID 1:", error);
-      userId = 1;
     }
 
     startTransition(async () => {
@@ -114,7 +99,6 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
       if (res.success) {
         Swal.fire({ icon: "success", title: "Berhasil!", text: "Adjustment stok fisik berhasil disimpan.", timer: 2000, showConfirmButton: false });
         setIsOpenModal(false);
-
         const refreshedStok = await getStokSekarang();
         const refreshedLedger = await getLedgerStok(filterBulan, filterTahun);
         setLiveStok(refreshedStok);
@@ -128,7 +112,6 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
 
   return (
     <div className="space-y-6">
-      {/* BANNER STOK */}
       <div className="bg-gradient-to-br from-[#94442e] to-[#b35c44] text-white p-6 rounded-xl shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="flex items-center gap-4">
           <div className="p-3.5 bg-white/10 rounded-xl border border-white/20 hidden sm:block shadow-inner">
@@ -152,7 +135,6 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
         </button>
       </div>
 
-      {/* FILTER */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
         <div className="flex items-center gap-2 text-gray-700 font-bold text-sm">
           <RefreshCw className={`w-4 h-4 ${isPending ? "animate-spin text-[#94442e]" : "text-gray-400"}`} />
@@ -184,9 +166,7 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
         </div>
       </div>
 
-      {/* TABEL LEDGER */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        {/* KONTROL ATAS TABEL */}
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span>Tampilkan</span>
@@ -269,7 +249,6 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
           </table>
         </div>
 
-        {/* PAGINATION BAWAH */}
         {totalPages > 1 && (
           <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
             <p className="text-xs text-gray-400">
@@ -283,7 +262,6 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter((p) => p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1))
                 .reduce<(number | "...")[]>((acc, p, idx, arr) => {
@@ -306,7 +284,6 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
                     </button>
                   )
                 )}
-
               <button
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
@@ -319,7 +296,6 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
         )}
       </div>
 
-      {/* MODAL ADJUSTMENT STOK */}
       {isOpenModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl border border-gray-200 shadow-xl w-full max-w-md overflow-hidden transform transition-all">
@@ -371,7 +347,7 @@ export default function StokClientPage({ stokSaatIni, initialLedger, currentMont
                   <textarea
                     value={keteranganAdj}
                     onChange={(e) => setKeteranganAdj(e.target.value)}
-                    placeholder="Contoh: Koreksi stok opname bulanan, ditemukannya bata hancur pas pembongkaran..."
+                    placeholder="Contoh: Koreksi stok opname bulanan..."
                     rows={3}
                     className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-[#94442e]"
                     required

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useTransition, useEffect } from "react";
-import { Plus, Calendar, Tag, FileText, DollarSign, Trash2, RefreshCw, Wallet } from "lucide-react";
+import React, { useState, useTransition, useEffect, useMemo } from "react";
+import { Plus, Calendar, Tag, FileText, DollarSign, Trash2, RefreshCw, Wallet, ChevronLeft, ChevronRight } from "lucide-react";
 import { getPengeluaran, createPengeluaran, deletePengeluaran } from "./action";
+import { useSession } from "next-auth/react";
 import Swal from "sweetalert2";
 
 interface PengeluaranType {
@@ -20,8 +21,10 @@ interface Props {
 }
 
 const KATEGORI_DEFAULT = ["Bahan Bakar", "Alat & Perlengkapan", "Upah Harian", "Transportasi", "Lain-lain"];
+const PAGE_SIZE_OPTIONS = [5, 10, 15, 25];
 
 export default function PengeluaranClientPage({ initialPengeluaran, currentMonth, currentYear }: Props) {
+  const { data: session } = useSession();
   const [isPending, startTransition] = useTransition();
   const [listPengeluaran, setListPengeluaran] = useState<PengeluaranType[]>(initialPengeluaran || []);
 
@@ -30,21 +33,36 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
   }, [initialPengeluaran]);
 
   const [isOpenModal, setIsOpenModal] = useState(false);
-
   const [filterBulan, setFilterBulan] = useState(currentMonth);
   const [filterTahun, setFilterTahun] = useState(currentYear);
 
-  // Form states
   const [tanggal, setTanggal] = useState(new Date().toISOString().split("T")[0]);
   const [kategori, setKategori] = useState("Bahan Bakar");
   const [customKategori, setCustomKategori] = useState("");
   const [deskripsi, setDeskripsi] = useState("");
   const [total, setTotal] = useState("");
 
-  // Hitung akumulator total biaya pengeluaran
+  // === PAGINATION STATE ===
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const totalRows = listPengeluaran.length;
+  const totalPages = Math.ceil(totalRows / pageSize);
+
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return listPengeluaran.slice(start, start + pageSize);
+  }, [listPengeluaran, currentPage, pageSize]);
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  };
+
   const totalBiayaOperasional = listPengeluaran.reduce((sum, item) => sum + item.total, 0);
 
   useEffect(() => {
+    setCurrentPage(1);
     startTransition(async () => {
       const updatedData = await getPengeluaran(filterBulan, filterTahun);
       setListPengeluaran(updatedData);
@@ -65,59 +83,25 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
 
     const kategoriFinal = kategori === "Lain-lain" && customKategori ? customKategori : kategori;
 
-    // 1. Validasi Form Dasar
     if (!kategoriFinal || !deskripsi || !total) {
       Swal.fire({ icon: "error", title: "Oops...", text: "Semua kolom wajib diisi!", confirmButtonColor: "#94442e" });
       return;
     }
 
-    // 2. Ambil dari localStorage menggunakan key "admin_profile" (Sesuai file login & stok)
-    const savedUser = localStorage.getItem("admin_profile");
-
-    if (!savedUser) {
-      Swal.fire({
-        icon: "error",
-        title: "Sesi Habis",
-        text: "Data login tidak ditemukan di browser Anda. Silakan login kembali.",
-        confirmButtonColor: "#94442e",
-      });
+    // Ambil userId dari session NextAuth — bukan localStorage
+    const userId = (session?.user as any)?.id;
+    if (!userId) {
+      Swal.fire({ icon: "error", title: "Sesi Habis", text: "Silakan login kembali.", confirmButtonColor: "#94442e" });
       return;
     }
 
-    // 3. Parsing & Ambil ID secara agresif + Pasang Fallback Aman
-    let userId: any = null;
-    try {
-      let parsedData = JSON.parse(savedUser);
-
-      // Mengatasi masalah jika data mengalami double-stringify di browser
-      if (typeof parsedData === "string") {
-        parsedData = JSON.parse(parsedData);
-      }
-
-      // Membantu intip isi struktur data di Inspect Element -> Console
-      console.log("=== DEBUG DATA USER (PENGELUARAN) ===", parsedData);
-
-      // Mencari ID dari berbagai variasi kemungkinan format objek login
-      userId = parsedData?.id || parsedData?.user?.id || parsedData?.data?.id || parsedData?.id_user;
-
-      // JIKA ID TIDAK DITEMUKAN (karena format data berbeda), paksa pakai ID default 1 (Admin)
-      if (!userId) {
-        console.warn("Peringatan: ID Pengguna tidak ditemukan di admin_profile. Menggunakan fallback ID: 1");
-        userId = 1;
-      }
-    } catch (error) {
-      console.error("Gagal melakukan parsing data user, menggunakan ID 1:", error);
-      userId = 1; // Fallback jika parsing gagal total
-    }
-
-    // 4. Jalankan Server Action
     startTransition(async () => {
       const res = await createPengeluaran({
         tanggal_pengeluaran: tanggal,
         kategori: kategoriFinal,
         deskripsi,
         total: parseInt(total),
-        created_by: parseInt(userId), // Pasti aman berupa angka (id asli atau 1)
+        created_by: parseInt(userId),
       });
 
       if (res.success) {
@@ -125,6 +109,7 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
         setIsOpenModal(false);
         const refreshedData = await getPengeluaran(filterBulan, filterTahun);
         setListPengeluaran(refreshedData);
+        setCurrentPage(1);
       } else {
         Swal.fire({ icon: "error", title: "Gagal", text: res.error || "Gagal menyimpan data.", confirmButtonColor: "#94442e" });
       }
@@ -149,6 +134,7 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
             Swal.fire({ icon: "success", title: "Dihapus!", text: "Catatan pengeluaran berhasil dihapus.", timer: 2000, showConfirmButton: false });
             const refreshedData = await getPengeluaran(filterBulan, filterTahun);
             setListPengeluaran(refreshedData);
+            setCurrentPage(1);
           } else {
             Swal.fire({ icon: "error", title: "Gagal", text: res.error || "Gagal menghapus data.", confirmButtonColor: "#94442e" });
           }
@@ -159,7 +145,6 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
 
   return (
     <div className="space-y-6">
-      {/* BANNER RINGKASAN BIAYA */}
       <div className="bg-[#94442e] text-white p-6 rounded-xl shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="flex items-center gap-4">
           <div className="p-3.5 bg-white/10 rounded-xl border border-white/20 hidden sm:block shadow-inner">
@@ -180,7 +165,6 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
         </button>
       </div>
 
-      {/* FILTER PERIODE BULANAN */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
         <div className="flex items-center gap-2 text-gray-700 font-bold text-sm">
           <RefreshCw className={`w-4 h-4 ${isPending ? "animate-spin text-[#94442e]" : "text-gray-400"}`} />
@@ -212,8 +196,22 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
         </div>
       </div>
 
-      {/* TABEL DATA PENGELUARAN */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span>Tampilkan</span>
+            <select value={pageSize} onChange={(e) => handlePageSizeChange(parseInt(e.target.value))} className="border border-gray-200 rounded-lg px-2 py-1 text-sm font-medium bg-gray-50 outline-none focus:border-[#94442e]">
+              {PAGE_SIZE_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <span>baris</span>
+          </div>
+          <p className="text-xs text-gray-400">{totalRows === 0 ? "Tidak ada data" : `Menampilkan ${Math.min((currentPage - 1) * pageSize + 1, totalRows)}–${Math.min(currentPage * pageSize, totalRows)} dari ${totalRows} data`}</p>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -232,14 +230,14 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
                     Memuat riwayat pengeluaran kas...
                   </td>
                 </tr>
-              ) : listPengeluaran.length === 0 ? (
+              ) : paginatedData.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center py-10 text-gray-400 bg-gray-50/50">
                     Belum ada rekam data pengeluaran operasional di periode ini.
                   </td>
                 </tr>
               ) : (
-                listPengeluaran.map((item) => (
+                paginatedData.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50/40 transition-colors">
                     <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
                       <span className="flex items-center gap-2">
@@ -265,9 +263,54 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
+            <p className="text-xs text-gray-400">
+              Halaman {currentPage} dari {totalPages}
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1))
+                .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                  if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("...");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((item, idx) =>
+                  item === "..." ? (
+                    <span key={`dots-${idx}`} className="px-2 text-gray-400 text-sm">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={item}
+                      onClick={() => setCurrentPage(item as number)}
+                      className={`w-8 h-8 rounded-lg text-sm font-semibold transition-colors ${currentPage === item ? "bg-[#94442e] text-white shadow-sm" : "border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                    >
+                      {item}
+                    </button>
+                  )
+                )}
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* MODAL MODAL FORM INPUT PENGELUARAN */}
       {isOpenModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl border border-gray-200 shadow-xl w-full max-w-md overflow-hidden transform transition-all">
@@ -282,7 +325,6 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
                 <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">Tanggal Pengeluaran *</label>
                 <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-[#94442e]" required />
               </div>
-
               <div>
                 <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">Kategori Operasional *</label>
                 <div className="relative">
@@ -300,7 +342,6 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
                   </select>
                 </div>
               </div>
-
               {kategori === "Lain-lain" && (
                 <div>
                   <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">Tulis Kategori Kustom *</label>
@@ -314,7 +355,6 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
                   />
                 </div>
               )}
-
               <div>
                 <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">Deskripsi / Keterangan *</label>
                 <div className="relative">
@@ -329,7 +369,6 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
                   />
                 </div>
               </div>
-
               <div>
                 <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">Total Biaya (Rp) *</label>
                 <div className="relative">
@@ -345,7 +384,6 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
                   />
                 </div>
               </div>
-
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setIsOpenModal(false)} className="px-4 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 rounded-lg cursor-pointer" disabled={isPending}>
                   Batal
