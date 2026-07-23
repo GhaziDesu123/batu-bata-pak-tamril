@@ -372,7 +372,7 @@ export default function PengeluaranClientPage({ initialPengeluaran, currentMonth
               <div>
                 <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">Total Biaya (Rp) *</label>
                 <div className="relative">
-                  <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-on-surface-variant">Rp</span>
                   <input
                     type="number"
                     value={total}

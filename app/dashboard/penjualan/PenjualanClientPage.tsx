@@ -2,6 +2,7 @@
 import React, { useState, useTransition, useEffect, useMemo } from "react";
 import { Plus, Calendar, User, Layers, CircleDollarSign, ClipboardList, ChevronLeft, ChevronRight } from "lucide-react";
 import { createTransaksiPenjualan, getTransaksiPenjualan } from "./action";
+import { useSession } from "next-auth/react";
 import Swal from "sweetalert2";
 
 interface TransaksiPenjualanMapped {
@@ -25,6 +26,7 @@ interface Props {
 const PAGE_SIZE_OPTIONS = [5, 10, 15, 25];
 
 export default function PenjualanClientPage({ initialData, currentMonth, currentYear }: Props) {
+  const { data: session } = useSession();
   const [isPending, startTransition] = useTransition();
   const [dataPenjualan, setDataPenjualan] = useState<TransaksiPenjualanMapped[]>(initialData);
   const [isOpenModal, setIsOpenModal] = useState(false);
@@ -55,7 +57,6 @@ export default function PenjualanClientPage({ initialData, currentMonth, current
     setCurrentPage(1);
   };
 
-  // Reset ke halaman 1 saat filter berubah
   useEffect(() => {
     setCurrentPage(1);
     startTransition(async () => {
@@ -84,25 +85,11 @@ export default function PenjualanClientPage({ initialData, currentMonth, current
       return;
     }
 
-    const savedUser = localStorage.getItem("admin_profile");
-    if (!savedUser) {
-      Swal.fire({ icon: "error", title: "Sesi Habis", text: "Data login tidak ditemukan di browser Anda. Silakan login kembali.", confirmButtonColor: "#94442e" });
+    // Ambil userId dari session NextAuth — bukan localStorage
+    const userId = (session?.user as any)?.id;
+    if (!userId) {
+      Swal.fire({ icon: "error", title: "Sesi Habis", text: "Silakan login kembali.", confirmButtonColor: "#94442e" });
       return;
-    }
-
-    let userId: any = null;
-    try {
-      let parsedData = JSON.parse(savedUser);
-      if (typeof parsedData === "string") parsedData = JSON.parse(parsedData);
-      console.log("=== DEBUG DATA USER ===", parsedData);
-      userId = parsedData?.id || parsedData?.user?.id || parsedData?.data?.id || parsedData?.id_user;
-      if (!userId) {
-        console.warn("Peringatan: ID Pengguna tidak ditemukan di admin_profile. Menggunakan fallback ID: 1");
-        userId = 1;
-      }
-    } catch (error) {
-      console.error("Gagal melakukan parsing data user, menggunakan ID 1:", error);
-      userId = 1;
     }
 
     startTransition(async () => {
@@ -153,7 +140,6 @@ export default function PenjualanClientPage({ initialData, currentMonth, current
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        {/* KONTROL ATAS TABEL */}
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <span>Tampilkan</span>
@@ -229,7 +215,6 @@ export default function PenjualanClientPage({ initialData, currentMonth, current
           </table>
         </div>
 
-        {/* PAGINATION BAWAH */}
         {totalPages > 1 && (
           <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between gap-3">
             <p className="text-xs text-gray-400">
@@ -243,7 +228,6 @@ export default function PenjualanClientPage({ initialData, currentMonth, current
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter((p) => p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1))
                 .reduce<(number | "...")[]>((acc, p, idx, arr) => {
@@ -266,7 +250,6 @@ export default function PenjualanClientPage({ initialData, currentMonth, current
                     </button>
                   )
                 )}
-
               <button
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
@@ -279,7 +262,6 @@ export default function PenjualanClientPage({ initialData, currentMonth, current
         )}
       </div>
 
-      {/* MODAL CATAT PENJUALAN */}
       {isOpenModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-xl border border-gray-200 shadow-xl w-full max-w-md overflow-hidden">
@@ -335,7 +317,7 @@ export default function PenjualanClientPage({ initialData, currentMonth, current
                 <div>
                   <label className="block text-xs font-semibold uppercase text-gray-500 mb-1.5">Harga Satuan *</label>
                   <div className="relative">
-                    <CircleDollarSign className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                    <span className="absolute left-3 top-2.5 text-xs font-bold text-on-surface-variant">Rp</span>
                     <input
                       type="number"
                       value={hargaPerBata}

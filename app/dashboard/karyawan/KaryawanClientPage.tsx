@@ -346,7 +346,7 @@ export default function KaryawanClientPage({ initialData }: Props) {
               <div>
                 <label className="block text-xs font-semibold uppercase text-on-surface-variant mb-1.5">Tarif Upah per Bata (Rp) *</label>
                 <div className="relative">
-                  <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-on-surface-variant" />
+                  <span className="absolute left-3 top-2.5 text-xs font-bold text-on-surface-variant">Rp</span>
                   <input
                     type="number"
                     value={upah}
